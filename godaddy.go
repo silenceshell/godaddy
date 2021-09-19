@@ -111,6 +111,21 @@ func getGodaddy(key, secret string) (string, error) {
 	return records[0].Data, nil
 }
 
+func getExternalIP() (addr string, err error) {
+	resp, err := http.Get("https://v6r.ipip.net/?format=callback")
+	if err != nil {
+		log.Printf("call externalip failed, %v", err)
+		return "", err
+	}
+
+	response, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	fmt.Println("response", string(response))
+	addr = strings.TrimLeft(string(response), "callback('")
+	addr = strings.TrimRight(addr, "')")
+	return addr, nil
+}
+
 func main() {
 	ticker := time.NewTicker(time.Hour)
 
@@ -131,15 +146,11 @@ func main() {
 	go func(ch chan interface{}, key, secret string) {
 		for t := range ticker.C {
 			fmt.Println("Tick at", t)
-			resp, err := http.Get("http://myexternalip.com/raw")
+			addr, err := getExternalIP()
 			if err != nil {
 				log.Printf("call externalip failed, %v", err)
 				continue
 			}
-
-			response, err := ioutil.ReadAll(resp.Body)
-			resp.Body.Close()
-			addr := strings.TrimRight(string(response), "\n")
 			if addr != lastAddr {
 				log.Printf("external ip address changed from %s to %s", lastAddr, addr)
 				lastAddr = addr
