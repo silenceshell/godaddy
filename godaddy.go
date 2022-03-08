@@ -112,7 +112,7 @@ func getGodaddy(key, secret string) (string, error) {
 }
 
 func getExternalIP() (addr string, err error) {
-	resp, err := http.Get("https://v6r.ipip.net/?format=callback")
+	resp, err := http.Get("http://ip4only.me/api/")
 	if err != nil {
 		log.Printf("call externalip failed, %v", err)
 		return "", err
@@ -121,8 +121,13 @@ func getExternalIP() (addr string, err error) {
 	response, err := ioutil.ReadAll(resp.Body)
 	resp.Body.Close()
 	fmt.Println("response", string(response))
-	addr = strings.TrimLeft(string(response), "callback('")
-	addr = strings.TrimRight(addr, "')")
+	s := strings.Split(string(response), ",")
+	if len(s) <=2 {
+		return "", fmt.Errorf("response error")
+	}
+	addr = s[1]
+	//addr = strings.TrimLeft(string(response), "callback('")
+	//addr = strings.TrimRight(addr, "')")
 	return addr, nil
 }
 

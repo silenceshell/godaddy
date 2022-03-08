@@ -11,10 +11,10 @@ Ref: [Get Started](https://developer.godaddy.com/getstarted)
 This is optional because you could use my docker image on Dockerhub: `silenceshell/godaddy:0.0.1`.
 
 ```
-go build godaddy.go
+GOOS=linux go build godaddy.go
 cp godaddy artifacts
 pushd artifacts
-docker build . -t silenceshell/godaddy:0.0.1
+docker build . -t silenceshell/godaddy:0.0.2
 popd
 rm godaddy
 ```
@@ -22,5 +22,5 @@ rm godaddy
 # Run on kubernetes
 
 ```
-kubectl run godaddy --image=silenceshell/godaddy:0.0.1 --command --/godaddy ${godaddy key} ${godaddy secret}
+kubectl run godaddy --image=silenceshell/godaddy:0.0.2 --command --/godaddy ${godaddy key} ${godaddy secret}
 ```
