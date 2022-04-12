@@ -74,7 +74,7 @@ func httpPost(url, body, key, secret string) error {
 	log.Println("call godaddy server success. record has changed.")
 
 	response, err := ioutil.ReadAll(resp.Body)
-	log.Println(string(response))
+	log.Println("godaddy response: " + string(response))
 	return err
 }
 
@@ -129,6 +129,25 @@ func getExternalIP() (addr string, err error) {
 	return addr, nil
 }
 
+func check(lastAddr, key, secret string) string {
+	addr, err := getExternalIP()
+	if err != nil {
+		log.Printf("call externalip failed, %v", err)
+		return lastAddr
+	}
+	if addr != lastAddr {
+		log.Printf("external ip address changed from %s to %s", lastAddr, addr)
+		err := updateGodaddy(addr, key, secret)
+		if err == nil {
+			return addr
+		}
+		log.Printf("call godaddy failed: %v", err)
+	} else {
+		log.Println("external ip not change, continue")
+	}
+	return lastAddr
+}
+
 func main() {
 	ticker := time.NewTicker(time.Hour)
 
@@ -145,25 +164,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	lastAddr = check(lastAddr, key, secret)
 
 	go func(ch chan interface{}, key, secret string) {
 		for t := range ticker.C {
 			fmt.Println("Tick at", t)
-			addr, err := getExternalIP()
-			if err != nil {
-				log.Printf("call externalip failed, %v", err)
-				continue
-			}
-			if addr != lastAddr {
-				log.Printf("external ip address changed from %s to %s", lastAddr, addr)
-				lastAddr = addr
-				err := updateGodaddy(addr, key, secret)
-				if err != nil {
-					log.Printf("call godaddy failed: %v", err)
-				}
-			} else {
-				log.Println("external ip not change, continue")
-			}
+			lastAddr = check(lastAddr, key, secret)
 		}
 		ch <- 0
 	}(stopCh, key, secret)
