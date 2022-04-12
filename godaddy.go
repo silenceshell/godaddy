@@ -20,7 +20,7 @@ func httpGet(url, key, secret string) ([]byte, error) {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-	client := &http.Client{Transport: tr, Timeout: time.Second * 10}
+	client := &http.Client{Transport: tr, Timeout: time.Second * 120}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -49,7 +49,7 @@ func httpPost(url, body, key, secret string) error {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
-	client := &http.Client{Transport: tr, Timeout: time.Second * 10}
+	client := &http.Client{Transport: tr, Timeout: time.Second * 120}
 
 	req, err := http.NewRequest("PUT", url, strings.NewReader(body))
 	if err != nil {
@@ -122,12 +122,10 @@ func getExternalIP() (addr string, err error) {
 	resp.Body.Close()
 	fmt.Println("response", string(response))
 	s := strings.Split(string(response), ",")
-	if len(s) <=2 {
+	if len(s) <= 2 {
 		return "", fmt.Errorf("response error")
 	}
 	addr = s[1]
-	//addr = strings.TrimLeft(string(response), "callback('")
-	//addr = strings.TrimRight(addr, "')")
 	return addr, nil
 }
 
