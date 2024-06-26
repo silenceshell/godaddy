@@ -3,15 +3,15 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
-	cloudflare "github.com/cloudflare/cloudflare-go"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	cloudflare "github.com/cloudflare/cloudflare-go"
 )
 
 type record struct {
@@ -80,37 +80,64 @@ func httpPost(url, body, key, secret string) error {
 	return err
 }
 
-func updateGodaddy(address string, key, secret string) error {
-	url := "https://api.godaddy.com/v1/domains/ieevee.com/records/A/e"
+func updateGodaddy(api *cloudflare.API, zoneID, dnsRecordID, address string, key, secret string) error {
+	_, err := api.UpdateDNSRecord(context.TODO(), cloudflare.ZoneIdentifier(zoneID), cloudflare.UpdateDNSRecordParams{
+		ID:      dnsRecordID,
+		Type:    "A",
+		Name:    "e.ieevee.com",
+		Content: address,
+		TTL:     1,
+	})
+	return err
 
-	records := make([]record, 0, 1)
-	records = append(records, record{Data: address})
-	body, err := json.Marshal(records)
-	if err != nil {
-		return err
-	}
-	log.Println(string(body))
-
-	return httpPost(url, string(body), key, secret)
+	//url := "https://api.godaddy.com/v1/domains/ieevee.com/records/A/e"
+	//
+	//records := make([]record, 0, 1)
+	//records = append(records, record{Data: address})
+	//body, err := json.Marshal(records)
+	//if err != nil {
+	//	return err
+	//}
+	//log.Println(string(body))
+	//
+	//return httpPost(url, string(body), key, secret)
 }
 
-func getGodaddy(key, secret string) (string, error) {
-	url := "https://api.godaddy.com/v1/domains/ieevee.com/records/A/e"
-
-	reponse, err := httpGet(url, key, secret)
+func getGodaddy(api *cloudflare.API, zoneID, key, secret string) (*cloudflare.DNSRecord, error) {
+	recs, _, err := api.ListDNSRecords(context.Background(),
+		cloudflare.ZoneIdentifier(zoneID), cloudflare.ListDNSRecordsParams{Name: "e.ieevee.com"})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
-	records := make([]record, 1)
-
-	err = json.Unmarshal(reponse, &records)
-	if err != nil {
-		return "", err
+	if len(recs) != 1 {
+		return nil, fmt.Errorf("invalid dns, more than 1 records")
 	}
+	return &recs[0], nil
+	//lastAddr := ""
+	//for _, r := range recs {
+	//	fmt.Printf("%s: %s\n", r.Name, r.Content)
+	//	if r.Name == "e.ieevee.com" {
+	//		lastAddr = r.Content
+	//	}
+	//}
+	//return lastAddr, nil
 
-	log.Printf("get records: %v", records[0].Data)
-	return records[0].Data, nil
+	//url := "https://api.godaddy.com/v1/domains/ieevee.com/records/A/e"
+	//
+	//reponse, err := httpGet(url, key, secret)
+	//if err != nil {
+	//	return "", err
+	//}
+	//
+	//records := make([]record, 1)
+	//
+	//err = json.Unmarshal(reponse, &records)
+	//if err != nil {
+	//	return "", err
+	//}
+	//
+	//log.Printf("get records: %v", records[0].Data)
+	//return records[0].Data, nil
 }
 
 func getExternalIP() (addr string, err error) {
@@ -131,7 +158,7 @@ func getExternalIP() (addr string, err error) {
 	return addr, nil
 }
 
-func check(lastAddr, key, secret string) string {
+func check(api *cloudflare.API, zoneID, dnsRecordID, lastAddr, key, secret string) string {
 	addr, err := getExternalIP()
 	if err != nil {
 		log.Printf("call externalip failed, %v", err)
@@ -139,7 +166,7 @@ func check(lastAddr, key, secret string) string {
 	}
 	if addr != lastAddr {
 		log.Printf("external ip address changed from %s to %s", lastAddr, addr)
-		err := updateGodaddy(addr, key, secret)
+		err := updateGodaddy(api, zoneID, dnsRecordID, addr, key, secret)
 		if err == nil {
 			return addr
 		}
@@ -160,31 +187,29 @@ func main() {
 
 	key := os.Args[1]
 	secret := os.Args[2]
-
-	//api, err := cloudflare.New(os.Getenv("CLOUDFLARE_API_KEY"), os.Getenv("CLOUDFLARE_API_EMAIL"))
 	api, err := cloudflare.New(key, secret)
 	if err != nil {
 		log.Fatal(err)
 	}
-	ctx := context.Background()
-	u, err := api.UserDetails(ctx)
+
+	zoneID, err := api.ZoneIDByName("ieevee.com")
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Print user details
-	fmt.Println(u)
 
 	stopCh := make(chan interface{})
-	lastAddr, err := getGodaddy(key, secret)
+	dnsRecord, err := getGodaddy(api, zoneID, key, secret)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
-	lastAddr = check(lastAddr, key, secret)
+	lastAddr := dnsRecord.Content
+
+	lastAddr = check(api, zoneID, dnsRecord.ID, lastAddr, key, secret)
 
 	go func(ch chan interface{}, key, secret string) {
 		for t := range ticker.C {
 			fmt.Println("Tick at", t)
-			lastAddr = check(lastAddr, key, secret)
+			lastAddr = check(api, zoneID, dnsRecord.ID, lastAddr, key, secret)
 		}
 		ch <- 0
 	}(stopCh, key, secret)
