@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	cloudflare "github.com/cloudflare/cloudflare-go"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -158,6 +160,19 @@ func main() {
 
 	key := os.Args[1]
 	secret := os.Args[2]
+
+	//api, err := cloudflare.New(os.Getenv("CLOUDFLARE_API_KEY"), os.Getenv("CLOUDFLARE_API_EMAIL"))
+	api, err := cloudflare.New(key, secret)
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx := context.Background()
+	u, err := api.UserDetails(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Print user details
+	fmt.Println(u)
 
 	stopCh := make(chan interface{})
 	lastAddr, err := getGodaddy(key, secret)
